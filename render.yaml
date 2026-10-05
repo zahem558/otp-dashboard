@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: otp-dashboard
+    runtime: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "BIND_HOST=0.0.0.0 OTP_TOKEN=${OTP_TOKEN} python app.py"
+    envVars:
+      - key: OTP_TOKEN
+        generateValue: true
+      - key: PYTHON_VERSION
+        value: "3.12.0"

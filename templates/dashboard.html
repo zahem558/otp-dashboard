@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My OTP Dashboard</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; background: #0f1115; color: #e8eaf0; min-height: 100vh; }
+  header { padding: 18px 22px; background: #161a22; border-bottom: 1px solid #262c38; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; position: sticky; top: 0; z-index: 5; }
+  header h1 { font-size: 19px; font-weight: 700; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: #3ddc84; box-shadow: 0 0 8px #3ddc84; }
+  #numFilter { background: #0f1115; color: #e8eaf0; border: 1px solid #2c3342; border-radius: 8px; padding: 8px 12px; font-size: 14px; max-width: 260px; }
+  #status { margin-left: auto; font-size: 12px; color: #8b93a7; }
+  main { max-width: 860px; margin: 0 auto; padding: 20px 16px 60px; }
+  .card { background: #161a22; border: 1px solid #262c38; border-radius: 14px; padding: 16px 18px; margin-bottom: 14px; }
+  .card .meta { display: flex; gap: 10px; align-items: center; font-size: 12px; color: #8b93a7; margin-bottom: 8px; flex-wrap: wrap; }
+  .badge { background: #232936; border: 1px solid #2f3748; padding: 3px 9px; border-radius: 20px; font-size: 11px; }
+  .badge.free { background: #3a2a12; border-color: #8a5a1a; color: #f5b942; }
+  .site-link { color: #6ea8fe; font-size: 12px; text-decoration: none; border: 1px solid #2c3342; padding: 3px 9px; border-radius: 20px; }
+  details.freebox { background: #161a22; border: 1px solid #262c38; border-radius: 14px; padding: 14px 18px; margin-bottom: 16px; }
+  details.freebox summary { cursor: pointer; font-weight: 700; font-size: 15px; }
+  .freebox input { background: #0f1115; color: #e8eaf0; border: 1px solid #2c3342; border-radius: 8px; padding: 8px 10px; font-size: 13px; margin: 6px 6px 6px 0; width: 220px; }
+  .freebox button { background: #2b6cb0; color: #fff; border: none; border-radius: 8px; padding: 8px 14px; font-size: 13px; cursor: pointer; margin: 4px 4px 4px 0; }
+  .freebox .sitebtn { background: #232936; border: 1px solid #2f3748; }
+  .freebox .inboxrow { display: flex; gap: 8px; align-items: center; font-size: 13px; color: #c3c9d6; padding: 6px 0; border-top: 1px solid #20263444; }
+  .freebox .inboxrow button { background: transparent; border: 1px solid #2c3342; color: #8b93a7; padding: 4px 10px; }
+  .freebox small { color: #8b93a7; font-size: 12px; display: block; margin-top: 6px; }
+  .otp-row { display: flex; align-items: center; gap: 12px; margin: 10px 0; }
+  .otp { font-size: 34px; font-weight: 800; letter-spacing: 6px; color: #3ddc84; font-variant-numeric: tabular-nums; }
+  .copy-btn, .del-btn { border: none; border-radius: 8px; padding: 9px 14px; font-size: 13px; cursor: pointer; }
+  .copy-btn { background: #2b6cb0; color: #fff; }
+  .copy-btn:active { background: #2c5282; }
+  .del-btn { background: transparent; color: #8b93a7; border: 1px solid #2c3342; }
+  .body { font-size: 14px; color: #c3c9d6; background: #0f1115; border-radius: 8px; padding: 10px 12px; white-space: pre-wrap; word-break: break-word; }
+  .empty { text-align: center; color: #8b93a7; padding: 60px 20px; font-size: 15px; }
+  .empty small { display: block; margin-top: 8px; font-size: 12px; }
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #3ddc84; color: #0b0d10; font-weight: 700; padding: 10px 22px; border-radius: 10px; opacity: 0; transition: opacity .25s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<header>
+  <div class="dot" id="liveDot"></div>
+  <h1>My OTP Dashboard</h1>
+  <select id="numFilter"><option value="">All numbers</option></select>
+  <span id="status">connecting…</span>
+</header>
+<main id="list">
+<details class="freebox" id="freebox">
+  <summary>📱 Free Numbers <span style="color:#8b93a7;font-weight:400;font-size:12px">— public inboxes</span></summary>
+  <div style="margin-top:10px">
+    <div id="knownSites"></div>
+    <div style="margin-top:10px">
+      <input id="inboxLabel" placeholder="Label, jaise: US free #1">
+      <input id="inboxUrl" placeholder="Inbox page ka URL paste karo" style="width:320px">
+      <button onclick="addInbox()">Add</button>
+      <button onclick="refreshFree()" class="sitebtn" style="background:#2b6cb0;color:#fff;border:none">↻ Abhi check karo</button>
+    </div>
+    <small>Site khud open karke koi number choose karo, us ke inbox page ka URL yahan paste kar do — dashboard har ~90 sec mein naye SMS check karega. Kuch sites auto-fetch block karti hain, wahan "Site kholo" se seedha khol lo.</small>
+    <div id="inboxList" style="margin-top:8px"></div>
+    <div id="freeStatus" style="font-size:12px;color:#8b93a7;margin-top:6px"></div>
+  </div>
+</details>
+<div id="msgs"></div>
+</main>
+<div class="toast" id="toast">Copied!</div>
+<script>
+const TOKEN = new URLSearchParams(location.search).get("token") || "";
+const q = TOKEN ? "?token=" + encodeURIComponent(TOKEN) : "";
+const list = document.getElementById("msgs");
+const numFilter = document.getElementById("numFilter");
+const statusEl = document.getElementById("status");
+const toast = document.getElementById("toast");
+let knownNumbers = [];
+
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.classList.add("show");
+  setTimeout(() => toast.classList.remove("show"), 1400);
+}
+function copyOtp(code) {
+  navigator.clipboard.writeText(code).then(() => showToast("OTP copied: " + code));
+}
+async function delMsg(id) {
+  if (!confirm("Delete this message?")) return;
+  await fetch("api/messages/" + id + q, { method: "DELETE" });
+  load();
+}
+function esc(s) { return (s || "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+async function load() {
+  try {
+    const n = numFilter.value;
+    const url = "api/messages" + q + (q ? "&" : "?") + "number=" + encodeURIComponent(n);
+    const r = await fetch(url);
+    if (r.status === 401) { statusEl.textContent = "unauthorized — token ghalat hai"; return; }
+    const data = await r.json();
+    statusEl.textContent = "live • " + data.messages.length + " messages";
+    if (JSON.stringify(data.numbers) !== JSON.stringify(knownNumbers)) {
+      knownNumbers = data.numbers;
+      const cur = numFilter.value;
+      numFilter.innerHTML = '<option value="">All numbers</option>' +
+        data.numbers.map(x => `<option value="${esc(x)}">${esc(x)}</option>`).join("");
+      numFilter.value = cur;
+    }
+    if (!data.messages.length) {
+      list.innerHTML = `<div class="empty">Abhi koi OTP nahi aaya.<small>Apne number par SMS bhejo — yahan foran show hoga.</small></div>`;
+      return;
+    }
+    list.innerHTML = data.messages.map(m => `
+      <div class="card">
+        <div class="meta">
+          ${m.provider === "free" ? '<span class="badge free">FREE</span>' : ""}
+          <span class="badge">${esc(m.to || "unknown")}</span>
+          <span>from ${esc(m.from || "?")}</span>
+          <span>${esc(m.time)}</span>
+          ${m.source_url ? `<a class="site-link" href="${esc(m.source_url)}" target="_blank" rel="noopener">Site kholo ↗</a>` : ""}
+          <span style="margin-left:auto"></span>
+          <button class="del-btn" onclick="delMsg(${m.id})">Delete</button>
+        </div>
+        ${m.otp ? `<div class="otp-row"><div class="otp">${esc(m.otp)}</div>
+          <button class="copy-btn" onclick="copyOtp('${esc(m.otp)}')">Copy</button></div>` : ""}
+        <div class="body">${esc(m.body)}</div>
+      </div>`).join("");
+  } catch (e) {
+    statusEl.textContent = "connection error — retrying…";
+  }
+}
+numFilter.addEventListener("change", load);
+load();
+setInterval(load, 5000);
+
+// ---------------- free numbers ----------------
+async function loadFreeSites() {
+  const r = await fetch("api/free-sites" + q);
+  const data = await r.json();
+  document.getElementById("knownSites").innerHTML =
+    data.sites.map(s => `<button class="sitebtn" onclick="window.open('${esc(s.url)}','_blank')">🌐 ${esc(s.name)}</button>`).join("");
+}
+async function loadInboxes() {
+  const r = await fetch("api/free-inboxes" + q);
+  const data = await r.json();
+  document.getElementById("inboxList").innerHTML = data.inboxes.map((b, i) => `
+    <div class="inboxrow"><span>📥 ${esc(b.label)}</span>
+      <a class="site-link" href="${esc(b.url)}" target="_blank" rel="noopener">kholo ↗</a>
+      <button onclick="delInbox(${i})">Hatao</button></div>`).join("") ||
+    '<div style="font-size:12px;color:#8b93a7">Koi free inbox add nahi hai.</div>';
+}
+async function addInbox() {
+  const label = document.getElementById("inboxLabel").value.trim();
+  const url = document.getElementById("inboxUrl").value.trim();
+  const r = await fetch("api/free-inboxes" + q, {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({label, url})});
+  const data = await r.json();
+  if (!data.ok) { showToast(data.error || "Add nahi hua"); return; }
+  document.getElementById("inboxLabel").value = "";
+  document.getElementById("inboxUrl").value = "";
+  loadInboxes(); refreshFree();
+}
+async function delInbox(i) {
+  await fetch("api/free-inboxes/" + i + q, {method: "DELETE"});
+  loadInboxes();
+}
+async function refreshFree() {
+  const el = document.getElementById("freeStatus");
+  el.textContent = "Checking free inboxes…";
+  const r = await fetch("api/free-inboxes/refresh" + q, {method: "POST"});
+  const data = await r.json();
+  const parts = Object.entries(data.results || {}).map(([k, v]) => `${k}: ${v[0]} naye (${v[1]})`);
+  el.textContent = parts.length ? parts.join(" • ") : "Koi inbox nahi";
+  load();
+}
+loadFreeSites();
+loadInboxes();
+</script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+[Unit]
+Description=Personal OTP Dashboard
+After=network.target
+
+[Service]
+Type=simple
+User=hatch
+WorkingDirectory=/home/hatch/workspace/otp-dashboard
+Environment=OTP_TOKEN=__APNA_TOKEN_YAHAN_LIKHO__
+Environment=PORT=5057
+ExecStart=/home/hatch/workspace/otp-dashboard/venv/bin/python /home/hatch/workspace/otp-dashboard/app.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
