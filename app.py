@@ -11,6 +11,7 @@ from datetime import datetime
 from flask import Flask, request, jsonify, render_template, abort
 
 import free_inbox
+import email_inbox
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.environ.get("OTP_DB", os.path.join(BASE_DIR, "otp.db"))
@@ -208,10 +209,61 @@ def api_free_refresh():
     results = free_inbox.poll_once(DB_PATH)
     return jsonify({"ok": True, "results": results})
 
+# ------------------------------------------------------- email inbox
+@app.route("/api/email-presets")
+def api_email_presets():
+    if not check_auth():
+        abort(401)
+    return jsonify({"presets": email_inbox.PRESETS})
+
+@app.route("/api/email-accounts", methods=["GET", "POST"])
+def api_email_accounts():
+    if not check_auth():
+        abort(401)
+    if request.method == "GET":
+        return jsonify({"accounts": email_inbox.safe_accounts()})
+    data = request.get_json(force=True, silent=True) or {}
+    label = (data.get("label") or "").strip()
+    host = (data.get("host") or "").strip()
+    port = int(data.get("port") or 993)
+    email_addr = (data.get("email") or "").strip()
+    password = data.get("password") or ""
+    if not label or not host or "@" not in email_addr or not password:
+        return jsonify({"ok": False, "error": "label, host, email aur password sab do"}), 400
+    accounts = email_inbox.load_accounts()
+    if any(a.get("email", "").lower() == email_addr.lower() and a.get("host") == host for a in accounts):
+        return jsonify({"ok": False, "error": "ye account pehle se added hai"}), 400
+    ok, msg = email_inbox.test_login(host, port, email_addr, password)
+    if not ok:
+        return jsonify({"ok": False, "error": msg}), 400
+    accounts.append({"label": label, "host": host, "port": port,
+                     "email": email_addr, "password": password, "last_uid": 0})
+    email_inbox.save_accounts(accounts)
+    return jsonify({"ok": True})
+
+@app.route("/api/email-accounts/<int:idx>", methods=["DELETE"])
+def api_email_account_delete(idx):
+    if not check_auth():
+        abort(401)
+    accounts = email_inbox.load_accounts()
+    if 0 <= idx < len(accounts):
+        accounts.pop(idx)
+        email_inbox.save_accounts(accounts)
+    return jsonify({"ok": True})
+
+@app.route("/api/email-accounts/refresh", methods=["POST"])
+def api_email_refresh():
+    if not check_auth():
+        abort(401)
+    results = email_inbox.poll_once(DB_PATH)
+    return jsonify({"ok": True, "results": results})
+
 if __name__ == "__main__":
     init_db()
     free_inbox.start_poller(DB_PATH)
     print(f"free inbox poller started (har {free_inbox.POLL_INTERVAL}s)")
+    email_inbox.start_poller(DB_PATH)
+    print(f"email poller started (har {email_inbox.POLL_INTERVAL}s)")
     if not TOKEN:
         print("!! OTP_TOKEN khaali hai — dashboard bina password ke khula hai. Sirf local test ke liye theek.")
     app.run(host=BIND_HOST, port=PORT)

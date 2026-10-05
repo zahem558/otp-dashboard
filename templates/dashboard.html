@@ -17,6 +17,7 @@
   .card .meta { display: flex; gap: 10px; align-items: center; font-size: 12px; color: #8b93a7; margin-bottom: 8px; flex-wrap: wrap; }
   .badge { background: #232936; border: 1px solid #2f3748; padding: 3px 9px; border-radius: 20px; font-size: 11px; }
   .badge.free { background: #3a2a12; border-color: #8a5a1a; color: #f5b942; }
+  .badge.email { background: #14263f; border-color: #2b6cb0; color: #6ea8fe; }
   .site-link { color: #6ea8fe; font-size: 12px; text-decoration: none; border: 1px solid #2c3342; padding: 3px 9px; border-radius: 20px; }
   details.freebox { background: #161a22; border: 1px solid #262c38; border-radius: 14px; padding: 14px 18px; margin-bottom: 16px; }
   details.freebox summary { cursor: pointer; font-weight: 700; font-size: 15px; }
@@ -60,6 +61,28 @@
     <small>Site khud open karke koi number choose karo, us ke inbox page ka URL yahan paste kar do — dashboard har ~90 sec mein naye SMS check karega. Kuch sites auto-fetch block karti hain, wahan "Site kholo" se seedha khol lo.</small>
     <div id="inboxList" style="margin-top:8px"></div>
     <div id="freeStatus" style="font-size:12px;color:#8b93a7;margin-top:6px"></div>
+  </div>
+</details>
+<details class="freebox" id="emailbox">
+  <summary>📧 Email Inbox <span style="color:#8b93a7;font-weight:400;font-size:12px">— apne domain/hosting se OTP emails</span></summary>
+  <div style="margin-top:10px">
+    <div>
+      <select id="emailPreset" onchange="applyPreset()" style="background:#0f1115;color:#e8eaf0;border:1px solid #2c3342;border-radius:8px;padding:8px 10px;font-size:13px;margin:6px 6px 6px 0"></select>
+      <input id="emailLabel" placeholder="Label, jaise: mydomain.com">
+    </div>
+    <div>
+      <input id="emailHost" placeholder="IMAP host, jaise: imap.hostinger.com" style="width:260px">
+      <input id="emailPort" placeholder="993" style="width:70px">
+    </div>
+    <div>
+      <input id="emailUser" placeholder="email address" style="width:260px">
+      <input id="emailPass" type="password" placeholder="password / app password" style="width:220px">
+      <button onclick="addEmailAccount()">Add</button>
+      <button onclick="refreshEmail()" class="sitebtn" style="background:#2b6cb0;color:#fff;border:none">↻ Abhi check karo</button>
+    </div>
+    <small>Apne domain ka email (Hostinger waghera) add karo — catch-all ho to <b>koi bhi address</b> par aane wale OTP emails yahan aa jayenge. Dashboard har ~60 sec mein naye emails check karega. Gmail mein normal password nahi, <b>app password</b> banana padta hai.</small>
+    <div id="emailAccountList" style="margin-top:8px"></div>
+    <div id="emailStatus" style="font-size:12px;color:#8b93a7;margin-top:6px"></div>
   </div>
 </details>
 <div id="msgs"></div>
@@ -112,6 +135,7 @@ async function load() {
       <div class="card">
         <div class="meta">
           ${m.provider === "free" ? '<span class="badge free">FREE</span>' : ""}
+          ${m.provider === "email" ? '<span class="badge email">EMAIL</span>' : ""}
           <span class="badge">${esc(m.to || "unknown")}</span>
           <span>from ${esc(m.from || "?")}</span>
           <span>${esc(m.time)}</span>
@@ -174,6 +198,70 @@ async function refreshFree() {
 }
 loadFreeSites();
 loadInboxes();
+
+// ---------------- email inbox ----------------
+let emailPresets = {};
+async function loadEmailPresets() {
+  const r = await fetch("api/email-presets" + q);
+  const data = await r.json();
+  emailPresets = data.presets || {};
+  const sel = document.getElementById("emailPreset");
+  sel.innerHTML = Object.entries(emailPresets)
+    .map(([k, p]) => `<option value="${esc(k)}">${esc(p.name)}</option>`).join("");
+  applyPreset();
+}
+function applyPreset() {
+  const p = emailPresets[document.getElementById("emailPreset").value];
+  if (!p) return;
+  document.getElementById("emailHost").value = p.host || "";
+  document.getElementById("emailPort").value = p.port || 993;
+}
+async function loadEmailAccounts() {
+  const r = await fetch("api/email-accounts" + q);
+  const data = await r.json();
+  document.getElementById("emailAccountList").innerHTML = (data.accounts || []).map((a, i) => `
+    <div class="inboxrow"><span>📧 ${esc(a.label)} <span style="color:#8b93a7">(${esc(a.email)})</span></span>
+      ${a.last_status ? `<span style="font-size:11px;color:#8b93a7">${esc(a.last_status)}</span>` : ""}
+      <button onclick="delEmailAccount(${i})">Hatao</button></div>`).join("") ||
+    '<div style="font-size:12px;color:#8b93a7">Koi email account add nahi hai.</div>';
+}
+async function addEmailAccount() {
+  const payload = {
+    label: document.getElementById("emailLabel").value.trim(),
+    host: document.getElementById("emailHost").value.trim(),
+    port: document.getElementById("emailPort").value.trim() || 993,
+    email: document.getElementById("emailUser").value.trim(),
+    password: document.getElementById("emailPass").value,
+  };
+  const el = document.getElementById("emailStatus");
+  el.textContent = "Login check ho raha hai…";
+  const r = await fetch("api/email-accounts" + q, {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(payload)});
+  const data = await r.json();
+  if (!data.ok) { el.textContent = "❌ " + (data.error || "Add nahi hua"); return; }
+  document.getElementById("emailLabel").value = "";
+  document.getElementById("emailUser").value = "";
+  document.getElementById("emailPass").value = "";
+  el.textContent = "✅ Account add ho gaya!";
+  loadEmailAccounts(); refreshEmail();
+}
+async function delEmailAccount(i) {
+  if (!confirm("Ye email account hata dun?")) return;
+  await fetch("api/email-accounts/" + i + q, {method: "DELETE"});
+  loadEmailAccounts();
+}
+async function refreshEmail() {
+  const el = document.getElementById("emailStatus");
+  el.textContent = "Emails check ho rahi hain…";
+  const r = await fetch("api/email-accounts/refresh" + q, {method: "POST"});
+  const data = await r.json();
+  const parts = Object.entries(data.results || {}).map(([k, v]) => `${k}: ${v[0]} naye (${v[1]})`);
+  el.textContent = parts.length ? parts.join(" • ") : "Koi account nahi";
+  loadEmailAccounts(); load();
+}
+loadEmailPresets();
+loadEmailAccounts();
 </script>
 </body>
 </html>
