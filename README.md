@@ -1,3 +1,13 @@
+---
+title: OTP Dashboard
+emoji: 📱
+colorFrom: blue
+colorTo: green
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # Personal OTP Dashboard
 
 Apne rented virtual numbers par aane wale OTP SMS ek hi dashboard par dekho.

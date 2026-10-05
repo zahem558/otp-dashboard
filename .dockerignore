@@ -1,0 +1,7 @@
+venv/
+__pycache__/
+*.db
+*.pyc
+.token
+.git
+free_numbers.json
